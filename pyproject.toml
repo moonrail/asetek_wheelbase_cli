@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asetek_wheelbase_cli"
+description = "Unstable incomplete experimental Asetek Wheelbase CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["CLI"]
+authors = []
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+dependencies = [
+    "pyusb",
+    "typer"
+]
+version = '0.0.1'
+
+[project.scripts]
+asetek-wheelbase-cli = "asetek_wheelbase_cli.main:cli"
+
+[tool.setuptools]
+packages = [
+    "asetek_wheelbase_cli"
+]
