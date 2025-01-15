@@ -28,6 +28,8 @@ class AsetekWheelbase:
     endpoint_in: Endpoint = None
     endpoint_out: Endpoint = None
 
+    _reattach_to_kernel: bool = False
+
     def _setup(self):
         if self.device is not None:
             # already set up
@@ -39,8 +41,9 @@ class AsetekWheelbase:
                 self.device = device
                 logging.info(f'Found wheelbase {definition}')
                 break
-
-        assert self.device, 'No wheelbase found'
+        if not self.device:
+            logging.error('No wheelbase found')
+            exit(1)
 
         self.configuration = self.device.get_active_configuration()
         if self.configuration is None:
@@ -50,11 +53,16 @@ class AsetekWheelbase:
         logging.debug(f'Using configuration {self.configuration.index}')
 
         self.interface = usb.util.find_descriptor(self.configuration, bInterfaceClass=3)
-        assert self.interface, 'No interface found in active configuration'
+        if not self.interface:
+            logging.error('No interface found in active wheelbase USB configuration')
+            exit(1)
+
+        self._reattach_to_kernel = False
         if self.device.is_kernel_driver_active(self.interface.index):
             logging.debug('Detaching interface from kernel driver')
             try:
                 self.device.detach_kernel_driver(self.interface.index)
+                self._reattach_to_kernel = True
             except USBError as e:
                 logging.error(f'Error while detatching kernel driver from interface {self.interface.index}: {e}')
                 exit(1)
@@ -67,7 +75,9 @@ class AsetekWheelbase:
             # match the first IN endpoint
             custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_IN
         )
-        assert self.endpoint_in, 'No in endpoint found'
+        if not self.endpoint_in:
+            logging.error('No in endpoint found in wheelbase USB descriptors')
+            exit(1)
         logging.debug(f'Using in endpoint {self.endpoint_in.index}')
 
         self.endpoint_out = usb.util.find_descriptor(
@@ -75,12 +85,20 @@ class AsetekWheelbase:
             # match the first OUT endpoint
             custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_OUT
         )
-        assert self.endpoint_out, 'No out endpoint found'
+        if not self.endpoint_out:
+            logging.error('No out endpoint found in wheelbase USB descriptors')
+            exit(1)
         logging.debug(f'Using out endpoint {self.endpoint_out.index}')
 
     def _cleanup(self):
         if self.device:
             usb.util.dispose_resources(self.device)
+            if self._reattach_to_kernel:
+                try:
+                    self.device.attach_kernel_driver(self.interface.index)
+                except USBError as e:
+                    logging.error(f'Error while reattaching kernel driver to interface {self.interface.index}: {e}')
+                    exit(1)
 
     def __enter__(self):
         self._setup()
